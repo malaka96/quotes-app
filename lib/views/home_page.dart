@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:quotes_app/services/quote_service.dart';
+import 'package:quotes_app/Models/quotes_model.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -11,6 +12,8 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final TextEditingController _quoteController = TextEditingController();
   final TextEditingController _authorController = TextEditingController();
+
+  Set<String> favoriteQuoteIds = {};
 
   @override
   void dispose() {
@@ -56,7 +59,8 @@ class _HomePageState extends State<HomePage> {
                 ElevatedButton(
                   onPressed: () async {
                     // Handle adding the quote
-                    if(_quoteController.text.isEmpty || _authorController.text.isEmpty) {
+                    if (_quoteController.text.isEmpty ||
+                        _authorController.text.isEmpty) {
                       showDialog(
                         context: context,
                         builder: (BuildContext context) {
@@ -98,7 +102,63 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Quotes App')),
-      body: Center(child: Text('Welcome to the Quotes App!')),
+      body: StreamBuilder(
+        stream: QuoteService().getQuotes(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(
+              child: Text('Error Loading Quotes ${snapshot.error}'),
+            );
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return Center(child: Text('No quotes available'));
+          } else {
+            final List<Quote> quotes = snapshot.data!;
+            quotes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            return ListView.builder(
+              itemCount: quotes.length,
+              itemBuilder: (context, index) {
+                final Quote quote = quotes[index];
+                final isFavorite = favoriteQuoteIds.contains(quote.id);
+                return Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 3,
+                  ),
+                  child: Card(
+                    child: ListTile(
+                      title: Text(quote.quoteText),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Author : ${quote.author}'),
+                          Text('Created At : ${quote.createdAt}'),
+                        ],
+                      ),
+                      trailing: IconButton(
+                        icon: Icon(
+                          Icons.favorite,
+                          color: isFavorite ? Colors.red : Colors.grey,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            if (isFavorite) {
+                              favoriteQuoteIds.remove(quote.id);
+                            } else {
+                              favoriteQuoteIds.add(quote.id);
+                            }
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                );
+              },
+            );
+          }
+        },
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           _showAddQuoteBottomSheet();
